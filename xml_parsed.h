@@ -1,8 +1,9 @@
 #pragma once
 
+#include <libxml/HTMLparser.h>
 #include <libxml/tree.h>
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstddef>
 
 namespace xml_parsed {
 
@@ -12,6 +13,6 @@ size_t size_of_xml_doc(const xmlDocPtr doc);
 xmlDocPtr xml_doc_copy(const xmlDocPtr doc, size_t&);
 
 void *xml_doc_wrap(const xmlDocPtr, size_t &);
-xmlDocPtr xml_doc_unwrap(void *, size_t);
+xmlDocPtr xml_doc_unwrap(void *);
 
 }  // namespace xml_parsed

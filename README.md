@@ -30,7 +30,7 @@ void *data;
 // size = ...
 // data = ...
 
-xmlDocPtr doc = xml_parsed::unwrap(data, size)
+xmlDocPtr doc = xml_parsed::unwrap(data)
 
 // deal with doc as usual (e.g. evaluate an xpath etc)
 
