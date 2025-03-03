@@ -59,7 +59,8 @@ static int evaluate_xpath(const char *html_file, const xmlChar *xpath_expr) {
 }
 
 char *load_file(const char *filename, size_t &size) {
-  int fd = open(filename, O_RDONLY);
+  // int fd = open(filename, O_RDONLY);
+  int fd = open(filename, O_RDWR);
   if (fd == -1) {
     perror("open");
     return nullptr;
@@ -74,7 +75,7 @@ char *load_file(const char *filename, size_t &size) {
   size = sb.st_size;
 
   char *data =
-      static_cast<char *>(mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0));
+      static_cast<char *>(mmap(nullptr, size, PROT_WRITE, MAP_PRIVATE, fd, 0));
   close(fd);
 
   if (data == MAP_FAILED) {
@@ -87,20 +88,25 @@ char *load_file(const char *filename, size_t &size) {
 int evaluate_xpath_parsed(const char *parsed_file, const xmlChar *xpath_expr) {
   auto start = std::chrono::high_resolution_clock::now();
 
-  std::ifstream file(parsed_file, std::ios::binary | std::ios::ate);
-  if (!file) {
-    throw std::runtime_error("Failed to open file");
-  }
+  size_t size;
+  void *data = load_file(parsed_file, size);
 
-  std::streamsize size = file.tellg();
-  file.seekg(0, std::ios::beg);
+//   std::ifstream file(parsed_file, std::ios::binary | std::ios::ate);
+//   if (!file) {
+//     throw std::runtime_error("Failed to open file");
+//   }
 
-  std::vector<char> buffer(size);
-  if (!file.read(buffer.data(), size)) {
-    throw std::runtime_error("Failed to read file");
-  }
+//   std::streamsize size = file.tellg();
+//   file.seekg(0, std::ios::beg);
 
-  xmlDocPtr doc = xml_parsed::xml_doc_unwrap(buffer.data());
+//   std::vector<char> buffer(size);
+//   if (!file.read(buffer.data(), size)) {
+//     throw std::runtime_error("Failed to read file");
+//   }
+
+//   xmlDocPtr doc = xml_parsed::xml_doc_unwrap(buffer.data());
+
+   xmlDocPtr doc = xml_parsed::xml_doc_unwrap(data, size);
 
   auto end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> elapsed = end - start;
