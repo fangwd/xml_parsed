@@ -38,7 +38,7 @@ int main() {
     std::free(data);
 
     document = (xmlDocPtr) chunk;
-    document = xml_parsed::xml_doc_unwrap(chunk);
+    document = xml_parsed::xml_doc_unwrap(chunk, size);
 
     xmlNode *root = xmlDocGetRootElement(document);
     std::cout << "Root Element: " << root->name << std::endl;

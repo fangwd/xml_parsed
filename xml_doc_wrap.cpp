@@ -1,14 +1,18 @@
+#include <cassert>
+#include <iostream>
 #include <unordered_set>
 
 #include "xml_parsed.h"
 
 namespace xml_parsed {
 
+#define INVALID_PTR std::ptrdiff_t(-1)
+
 #define TO_OFFSET(base, ptr)                       \
   (ptr ? reinterpret_cast<std::ptrdiff_t>(         \
              reinterpret_cast<const char *>(ptr) - \
              reinterpret_cast<const char *>(base)) \
-       : 0)
+       : INVALID_PTR)
 
 class Tracker {
   std::unordered_set<const void *> seen_;
@@ -27,11 +31,27 @@ class Tracker {
 
 class Wrapper {
   xmlDocPtr base_;
+  size_t max_offset_;
   Tracker tracker_;
+
+  std::unordered_map<const void *, const void *> addr_map_;
 
   template <typename T>
   void to_offset(T **ptr) {
-    if (*ptr) *ptr = reinterpret_cast<T *>(TO_OFFSET(base_, *ptr));
+    if (!*ptr) {
+      *ptr = (T *)(-1);
+    } else {
+      auto it = addr_map_.find(*ptr);
+      if (it != addr_map_.end()) {
+        *ptr = (T *)(it->second);
+      } else {
+        assert((const char *)(*ptr) >= (char *)base_);
+        auto value = reinterpret_cast<T *>(TO_OFFSET(base_, *ptr));
+        max_offset_ = std::max(max_offset_, size_t(*ptr));
+        addr_map_[*ptr] = value;
+        *ptr = value;
+      }
+    }
   }
 
   void wrap(xmlNsPtr ns) {
@@ -117,32 +137,61 @@ class Wrapper {
  public:
   Wrapper(xmlDocPtr doc) : base_(doc) {}
 
-  void wrap() {
+  void wrap(size_t &size) {
     tracker_.clear();
+    max_offset_ = 0;
     wrap(base_);
   }
 };
 
 #define TO_PTR(base, offset)                                           \
-  (reinterpret_cast<std::uintptr_t>(offset)                            \
+  (reinterpret_cast<std::uintptr_t>(offset) != INVALID_PTR             \
        ? reinterpret_cast<char *>((char *)(base) +                     \
                                   reinterpret_cast<ptrdiff_t>(offset)) \
        : nullptr)
 
 class Unwrapper {
   xmlDocPtr base_;
+  size_t total_size_;
   Tracker tracker_;
+  std::unordered_map<const void *, const void *> addr_map_;
 
   template <typename T>
   void to_ptr(T **offset) {
-    if (*offset) {
-      *offset = reinterpret_cast<T *>(TO_PTR(base_, *offset));
+    if (*offset == (T *)(-1)) {
+      *offset = nullptr;
+    } else {
+      auto it = addr_map_.find(*offset);
+      if (it != addr_map_.end()) {
+        *offset = (T *)(it->second);
+      } else {
+        auto value = reinterpret_cast<T *>(TO_PTR(base_, *offset));
+        addr_map_[*offset] = value;
+        *offset = value;
+      }
+      if ((const char *)(*offset) >= (const char *)base_ + total_size_) {
+        std::cerr << "Out of bound ptr\n";
+        assert(0);
+      }
     }
   }
 
   void to_ptr(const xmlChar **offset) {
-    if (*offset) {
-      *offset = reinterpret_cast<const xmlChar *>(TO_PTR(base_, *offset));
+    if (*offset == (xmlChar *)(-1)) {
+      *offset = nullptr;
+    } else {
+      auto it = addr_map_.find(*offset);
+      if (it != addr_map_.end()) {
+        *offset = (const xmlChar *)(it->second);
+      } else {
+        auto value = reinterpret_cast<const xmlChar *>(TO_PTR(base_, *offset));
+        addr_map_[*offset] = value;
+        *offset = value;
+      }
+      if ((const char *)(*offset) >= (const char *)base_ + total_size_) {
+        std::cerr << "Out of bound ptr for xmlChar\n";
+        assert(0);
+      }
     }
   }
 
@@ -227,7 +276,8 @@ class Unwrapper {
   }
 
  public:
-  Unwrapper(void *data) : base_((xmlDocPtr)data) {}
+  Unwrapper(void *data, size_t size)
+      : base_((xmlDocPtr)data), total_size_(size) {}
 
   void unwrap() {
     tracker_.clear();
@@ -238,12 +288,16 @@ class Unwrapper {
 void *xml_doc_wrap(const xmlDocPtr doc, size_t &size) {
   xmlDocPtr copy = xml_doc_copy(doc, size);
   Wrapper wrapper(copy);
-  wrapper.wrap();
+  size_t result_size;
+  wrapper.wrap(result_size);
+  if (result_size >= size) {
+    assert(0);
+  }
   return (void *)copy;
 }
 
-xmlDocPtr xml_doc_unwrap(void *data) {
-  Unwrapper unwrapper(data);
+xmlDocPtr xml_doc_unwrap(void *data, size_t size) {
+  Unwrapper unwrapper(data, size);
   unwrapper.unwrap();
   return (xmlDocPtr)data;
 }

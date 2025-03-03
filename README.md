@@ -48,3 +48,20 @@ Note: on MacOS, you may need to install `pkg-config` by running:
 ```
 brew install pkg-config
 ```
+
+## CLI
+
+To serialise a HTML file:
+```
+./build/parsed --serialise files/example.html --output files/example.dat
+```
+
+To evaluate an xpath against a html doc:
+```
+./build/parsed --html files/example.html  -e '//*[last()]' 
+```
+
+To evaluate an xpath against a parsed xml doc:
+```
+./build/parsed --parsed files/example.dat -e '//*[last()]' 
+```
